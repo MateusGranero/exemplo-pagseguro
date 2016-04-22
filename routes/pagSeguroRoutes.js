@@ -3,6 +3,9 @@ module.exports = function (app) {
     
     app.route('/')
         .get(pagSeguro.index)
-        .post(pagSeguro.comprador)
+        .post(pagSeguro.comprador);
+        
+    app.route('/notificacao')
+        .post(pagSeguro.notificacao);
     
 }

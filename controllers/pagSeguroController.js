@@ -1,8 +1,12 @@
-var pag = require('../config/pagseguroConfig');
+var pag      = require('../config/pagseguroConfig'),
+    xml2json = require('xml2js'),
+    request  = require('request'),
+    retorno  = require('./pagRetornos');
 
 module.exports = {
     index:index,
-    comprador:comprador
+    comprador:comprador,
+    notificacao: notificacao
 }
 
 function index(req,res,next){
@@ -10,7 +14,6 @@ function index(req,res,next){
 }
 
 function comprador(req,res,next){
-    
     //Informações do comprador
     pag.pagCart.buyer({
         name: req.body.nome,           // Nome
@@ -21,7 +24,7 @@ function comprador(req,res,next){
     
     //Informações para entrega
     pag.pagCart.shipping({
-       type: 1,             //1- Encomenda Normal (PAC) // 2- SEDEX // 3-Tipo de frete não especificado 
+       type: 1,                          //1- Encomenda Normal (PAC) // 2- SEDEX // 3-Tipo de frete não especificado 
        street: req.body.rua,             // Rua
        number: req.body.numero,          // Numero
        complement: req.body.complemento, // Complemento
@@ -32,31 +35,54 @@ function comprador(req,res,next){
        country: 'BRA'                    // País (No momento apenas 'BRA' Brasil é aceito)
     });
     
-    
     // Adicionando produtos a compra
     pag.pagCart.addItem({
-    	        id: 1,                        // Id do Produto
-    	        description: 'Produto teste', // Descrição
-    	        amount: 5.99,                 // Valor do Produto
-    	        quantity: 1,                  // Quantidade
-    	        weight: 10000                 // Peso em gramas
-    	    });
-    pag.pagCart.addItem({
-        id: 3,                        // Id do Produto
-        description: 'Produto lalala', // Descrição
-        amount: 50.99,                 // Valor do Produto
-        quantity: 3,                  // Quantidade
+        id: 1,                        // Id do Produto
+        description: 'Produto Teste', // Descrição
+        amount: 1.99,                 // Valor do Produto
+        quantity: 1,                  // Quantidade
         weight: 10000                 // Peso em gramas
     });
-
-    // Enviando  
+   
+    // Enviando compra
      pag.pagCart.send(function(err, data) {
             if (err) {
                 console.log(err);
                 res.status(500).json(data);      
             }else{
-                console.log(data);
-                res.status(200).json(data);    
+                xml2json.parseString(data,{ explicitArray : false, ignoreAttrs : true }, function(err,result){
+                    if(err){
+                        res.status(500).json({msg:'Erro ao converter xml para Json'})
+                    }
+                    console.log(result);
+                    res.status(200).json({'url' : 'https://sandbox.pagseguro.uol.com.br/v2/checkout/payment.html?code=' + result.checkout.code});  
+                });
             }
         });           
+}
+
+function notificacao(req,res,next) {
+    // console.log(req.body.notificationCode);
+    // console.log(req.body.notificationType);
+    console.log(pag.pagCart.email);
+    var url = `https://ws.sandbox.pagseguro.uol.com.br/v3/transactions/notifications/${req.body.notificationCode}`
+        + `?email=${pag.pagCart.email}` 
+        + `&token=${pag.pagCart.token}` 
+      
+    request(url, function(err, resp, body) {
+        if (err) 
+            res.json('erro');
+        else {
+            xml2json.parseString(body,{ explicitArray : false, ignoreAttrs : true }, function(err,result){
+                if(err)
+                    res.status(500).json({msg:'Erro ao converter xml para Json'})
+                    
+               retorno.retornoNotificacao(result.transaction.status, function(obj){
+                    result.transaction.status = obj;
+                    console.log(result);
+                    res.status(200).json(result);  
+               })
+            });
+        }
+    });
 }
