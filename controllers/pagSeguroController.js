@@ -69,7 +69,13 @@ function notificacao(req,res,next) {
         + `?email=${pag.pagCart.email}` 
         + `&token=${pag.pagCart.token}` 
       
-    request(url, function(err, resp, body) {
+    request({
+        method:"GET",
+        url:url,
+        header:{
+            'Content-Type': 'application/xml; charset=UTF-8'
+        }
+    }, function(err, resp, body) {
         if (err) 
             res.json('erro');
         else {
@@ -77,10 +83,16 @@ function notificacao(req,res,next) {
                 if(err)
                     res.status(500).json({msg:'Erro ao converter xml para Json'})
                     
-               retorno.retornoNotificacao(result.transaction.status, function(obj){
-                    result.transaction.status = obj;
-                    console.log(result);
-                    res.status(200).json(result);  
+               retorno.retornoNotificacao(result, function(obj){
+                   var x = result.transaction;
+                    x.status = obj.status;
+                    x.paymentMethod = obj.paymentMethod;
+                    x.type = obj.type;
+                    x.shipping = obj.shipping;
+                    
+                    result.transaction = x;
+                    console.log(obj);
+                    res.status(200).json(obj);  
                })
             });
         }
